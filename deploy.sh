@@ -89,8 +89,8 @@ WORK_DIR=$(cd $(dirname $(cd $(dirname $0);pwd));pwd)
 RSYNC=/usr/bin/rsync
 # rsync のオプション
 RSYNC_OPT="-av"
-# 転送先ディレクトリ
-LEGACY_REPO=$WORK_DIR/legacy
+# 転送先ディレクトリ（複数ある場合はスペース区切りで指定）
+LEGACY_REPOS="$WORK_DIR/legacy $WORK_DIR/legacy-mysql"
 # ログファイル(deploy.YYYYMMDD-HHMM.log)
 LOGDIR=$CURRENT_DIR/log
 LOGFILE=$(basename $0 .sh).$(/bin/date +%Y%m%d)-$(/bin/date +%H%M).log
@@ -129,10 +129,12 @@ do
         fi
 
         SRC=$CURRENT_DIR/$MODDIRNAME/$TARGETDIR/
-        DST=$LEGACY_REPO/$TARGETDIR/
 
-        echo "$RSYNC $RSYNC_OPT $SRC $DST" >> $LOG
-        $RSYNC $RSYNC_OPT $SRC $DST >> $LOG 2>&1
+        for LEGACY_REPO in $LEGACY_REPOS; do
+            DST=$LEGACY_REPO/$TARGETDIR/
+            echo "$RSYNC $RSYNC_OPT $SRC $DST" >> $LOG
+            $RSYNC $RSYNC_OPT $SRC $DST >> $LOG 2>&1
+        done
     done
 done
 
