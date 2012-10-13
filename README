@@ -1,0 +1,81 @@
+Xoops モジュールを作る時の作業をちょっと手助けするスクリプト
+
+deploy.sh (モジュール配置スクリプト)
+=======================
+
+■ このスクリプトについて
+-----------------------
+
+xoops_modules/ 以下にモジュールのリポジトリを git clone しておき 
+作業をしたあとこのスクリプトで legacy 内に配置する
+
+■ 使い方
+-----------------------
+  sh ./deploy.sh
+
+■ 作業フロー
+-----------------------
+
+1. モジュールのリポジトリ保存ディレクトリに移動
+   cd /Users/web/htdocs/xoops_modules/
+
+2. モジュールを git clone （していなければ）
+   git clone git://github.com/XoopsX/xupdate.git
+
+3. モジュールのリポジトリに移動
+   cd xupdate
+
+4. 作業用ブランチを作成/チェックアウト
+   git checkout -b pgsql
+
+   既に作業用ブランチを作成済みなら
+
+   git checkout pgsql
+
+5. ソースコードをいじる
+   vi hogehoge.php
+
+6. このスクリプトを呼び出す
+   sh ../deploy.sh
+
+7. ブラウザで確認
+
+   問題がなければ 7 へ、
+   まだまだ続きがあれば 5 へ
+
+8. コミット
+   git add xxxxx
+   git commit
+   git push pgsql origin
+
+9. github の画面で pull request する
+
+■ 想定ディレクトリ構成
+-----------------------
+
+/Users/web/htdocs/  <== http://localhost/ でアクセスする場所
+  |
+  +- xoops_modules/ <== 各モジュールのリポジトリを保存
+  |   |
+  |   +- deploy.sh  <== このスクリプトファイル
+  |   |
+  |   +- xupdate/
+  |   |
+  |   +- altsys/
+  |   |
+  |   +- protector/
+  |   |
+  |   +- pico/
+  |   |
+  |   +- その他
+  |
+  +- legacy/        <== legacy リポジトリ
+      |
+      +- html/
+      |   |
+      |   +- common/
+      |   |
+      |   +- modules/
+      |
+      +- xoops_trust_path/
+
