@@ -12,7 +12,7 @@
 #
 # ■ 使い方
 # -----------------------
-#   sh ./deploy.sh
+#   sh ./deploy.sh [legacy リポジトリのパス]
 #
 # ■ 作業フロー
 # -----------------------
@@ -91,16 +91,70 @@ RSYNC=/usr/bin/rsync
 RSYNC_OPT="-av"
 # 転送先ディレクトリ（複数ある場合はスペース区切りで指定）
 LEGACY_REPOS="$WORK_DIR/legacy $WORK_DIR/legacy-mysql"
+# 転送しないモジュール（カンマ区切り）
+IGNORE_MODULES=
 # ログファイル(deploy.YYYYMMDD-HHMM.log)
 LOGDIR=$CURRENT_DIR/log
 LOGFILE=$(basename $0 .sh).$(/bin/date +%Y%m%d)-$(/bin/date +%H%M).log
 LOG=$LOGDIR/$LOGFILE
 
+function usage_exit() {
+    echo ""
+    echo "Usage: /bin/sh $0 [-r path1:path2:...] [-i mod1,mod2,...]"
+    echo ""
+    echo "  e.g.) /bin/sh $0"
+    echo "  e.g.) /bin/sh $0 -r ../legacy"
+    echo "  e.g.) /bin/sh $0 -r ../legacy:../legacy-mysql"
+    echo "  e.g.) /bin/sh $0 -r ../legacy -i xupdate"
+    echo "  e.g.) /bin/sh $0 -r ../legacy -i xupdate,pico"
+    echo ""
+    exit 1
+}
+function isIgnoreModule() {
+    CHECK_MODNAME=$1
+    IGNORE_FLAG=0
+    for check in $IGNORE_MODULES; do
+        if [ "$check" = "$CHECK_MODNAME" ]; then
+            IGNORE_FLAG=1
+            break;
+        fi
+    done
+    return $IGNORE_FLAG;
+}
+
+
+# 引数があれば処理する
+if [ $# -gt 0 ]; then
+    while getopts "r:i:h" flag; do
+        case $flag in
+            r) LEGACY_REPOS=""
+                for r in $(echo $OPTARG| sed "s/:/ /g"); do
+                    ADD_REPO=$(cd $r; pwd)
+                    if [ "$LEGACY_REPOS" = "" ]; then
+                        LEGACY_REPOS="$ADD_REPO"
+                    else
+                        LEGACY_REPOS="$LEGACY_REPOS $ADD_REPO"
+                    fi
+                done
+                ;;
+            i) IGNORE_MODULES=$(echo $OPTARG| sed "s/,/ /g") ;;
+            h) usage_exit ;;
+            *) usage_exit ;;
+        esac
+    done
+fi
+
+# rsync があるか確認
+if [ ! -x $RSYNC ]; then
+    echo "ERROR: not found rsync command: $RSYNC"
+    exit 1;
+fi
+
 # ログディレクトリ作成
 if [ ! -d $CURRENT_DIR/log ]; then
     mkdir $CURRENT_DIR/log
     if [ $? -ne 0 ]; then
-        echo "Cannot mkdir $CURRENT_DIR/log"
+        echo "ERROR: Cannot mkdir $CURRENT_DIR/log"
         exit 1;
     fi
 fi
@@ -108,7 +162,7 @@ touch $LOG
 
 # モジュールのリポジトリをみつける
 cd $CURRENT_DIR
-find . -type d -maxdepth 1 -print | while read MOD_DIRNAME
+find . -maxdepth 1 -type d -print | while read MOD_DIRNAME
 do
     MODDIRNAME=$(basename $MOD_DIRNAME)
     # ./ ../ .git/ log/ はスキップ
@@ -116,11 +170,17 @@ do
         continue;
     fi
 
+    isIgnoreModule $MODDIRNAME
+    if [ $? = 1 ]; then
+        echo "----> ignore: $MODDIRNAME"
+        continue;
+    fi
+
     # モジュールリポジトリに入る
     cd $MODDIRNAME
 
     # リポジトリ内のディレクトリを rsync する
-    find . -type d -maxdepth 1 -print | while read TARGET_DIR
+    find . -maxdepth 1 -type d -print | while read TARGET_DIR
     do
         TARGETDIR=$(basename $TARGET_DIR)
         # ./ ../ .git/ はスキップ
@@ -132,6 +192,7 @@ do
 
         for LEGACY_REPO in $LEGACY_REPOS; do
             DST=$LEGACY_REPO/$TARGETDIR/
+            echo "$RSYNC $RSYNC_OPT $SRC $DST"
             echo "$RSYNC $RSYNC_OPT $SRC $DST" >> $LOG
             $RSYNC $RSYNC_OPT $SRC $DST >> $LOG 2>&1
         done
