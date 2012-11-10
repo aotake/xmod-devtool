@@ -93,6 +93,8 @@ RSYNC_OPT="-av"
 LEGACY_REPOS="$WORK_DIR/legacy $WORK_DIR/legacy-mysql"
 # 転送しないモジュール（カンマ区切り）
 IGNORE_MODULES=
+# リポジトリ、モジュールの確認をしないですぐに処理する場合 yes
+ANSWER=no
 # ログファイル(deploy.YYYYMMDD-HHMM.log)
 LOGDIR=$CURRENT_DIR/log
 LOGFILE=$(basename $0 .sh).$(/bin/date +%Y%m%d)-$(/bin/date +%H%M).log
@@ -107,6 +109,7 @@ function usage_exit() {
     echo "  e.g.) /bin/sh $0 -r ../legacy:../legacy-mysql"
     echo "  e.g.) /bin/sh $0 -r ../legacy -i xupdate"
     echo "  e.g.) /bin/sh $0 -r ../legacy -i xupdate,pico"
+    echo "  e.g.) /bin/sh $0 -y -r ../legacy -i xupdate,pico"
     echo ""
     exit 1
 }
@@ -125,7 +128,7 @@ function isIgnoreModule() {
 
 # 引数があれば処理する
 if [ $# -gt 0 ]; then
-    while getopts "r:i:h" flag; do
+    while getopts "r:i:hy" flag; do
         case $flag in
             r) LEGACY_REPOS=""
                 for r in $(echo $OPTARG| sed "s/:/ /g"); do
@@ -138,10 +141,23 @@ if [ $# -gt 0 ]; then
                 done
                 ;;
             i) IGNORE_MODULES=$(echo $OPTARG| sed "s/,/ /g") ;;
+            y) ANSWER=yes ;;
             h) usage_exit ;;
             *) usage_exit ;;
         esac
     done
+fi
+
+echo "REP=$LEGACY_REPOS"
+echo "IGNORE=$IGNORE_MODULES"
+
+if [ $# -gt 0 -a "$ANSWER" != "yes" ]; then
+    /bin/echo -n "Continue? [y/N]: "
+    read answer
+    if [ "$answer" != "y" -a "$answer" != "Y" ]; then
+        echo "...cancel."
+        exit 1
+    fi
 fi
 
 # rsync があるか確認
@@ -177,7 +193,12 @@ do
     fi
 
     # モジュールリポジトリに入る
-    cd $MODDIRNAME
+    if [ ! -d $MODDIRNAME ]; then
+        echo "ERROR: $MODDIRNAME is not found"
+        echo "CURRENT: "$(pwd)
+        exit 1
+    fi
+    pushd $MODDIRNAME > /dev/null
 
     # リポジトリ内のディレクトリを rsync する
     find . -maxdepth 1 -type d -print | while read TARGET_DIR
@@ -197,6 +218,7 @@ do
             $RSYNC $RSYNC_OPT $SRC $DST >> $LOG 2>&1
         done
     done
+    popd > /dev/null
 done
 
 exit 0
